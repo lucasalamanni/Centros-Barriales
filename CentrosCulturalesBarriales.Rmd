@@ -1,0 +1,168 @@
+---
+title: "Ejercicio final de Ciencia de Datos para Ciudades (UTDT)"
+author: "Lucas Alamanni"
+date: "2024-10-14"
+output: 
+  html_document:
+    theme: journal
+    toc: yes
+    toc_float:
+      collapsed: true
+---
+## Instalación de librerías.
+```{r}
+library(tidyverse)
+library(sf)
+library(sf)
+library(ggmap)
+library(osmdata)
+```
+
+## 1)a y b. Hacer un breve análisis exploratorio de ambos dataset 
+### Dataset de barrios CABA
+```{r}
+barrios_caba <- st_read("data/barrios_caba/barrios_caba.shp",
+                        stringsAsFactors = TRUE,
+                        options = "ENCODING=latin1")
+```
+
+```{r}
+head(barrios_caba)
+```
+
+Usando la función head() que nos permite obtener un vistazo rápido de las primeras filas del dataset, observamos que el mismo contiene información sobre 4 variables.
+
+```{r}
+names(barrios_caba)
+```
+
+Estas cuatro hacen referencia al nombre de los barrios porteños, la comuna a la que pertenecen, su superficie en km2 y una columna llamada ''geometry'' que contiene información espacial sobre cada uno de los barrios.
+
+```{r}
+class(barrios_caba)
+```
+Esta última columna, geometry, es la que hace que el data set sea ''sf'' (simple features) que se compone de geometrías bidimensionales ( en es te caso polígonos).
+
+```{r}
+summary(barrios_caba)
+```
+Haciendo un resumen podemos ver que en CABA hay 15 comunas, que en promedio cubren 4243 km2 cada una. En total hay 48 barruis cada uno con sus respectiva información geográfica representada por datos vectoriales de tipo polígono.
+
+```{r}
+dim(barrios_caba)
+```
+
+Vemos con la función dim que hay 48 registros o filas con las 4 variables antes descriptas.
+
+## Dataset centros de salud privados CABA.
+
+```{r}
+centros_privados <- st_read("data/centros-de-salud-privados-zip/centros-de-salud-privados.shp")
+```
+
+
+```{r}
+head(centros_privados)
+```
+Este data set cuenta con información sobre el nombre de 65 centros privados de Salud de Caba, su dirección, su teléfono, datos geométricos de tipo punto y observaciones de cada institución consideradas pertinentes que datan de noviembre del 2012.
+
+```{r}
+class(centros_privados)
+```
+
+Este último data set es geográfico como el anterior.
+
+```{r}
+summary(centros_privados)
+```
+El summary no otorga ninguna información relevante porque las columnas no contienen variables cuantitativas como el caso de km2 del data set anterior.
+
+```{r}
+dim(centros_privados)
+```
+
+Hay 65 centros privados registrados en este data set y 8 variables que contienen información sobre ellos.
+
+### c. Hacer un mapa donde se visualicen superpuestas ambas capas de información
+
+
+
+
+
+```{r}
+ggplot()+
+  geom_sf(data=barrios_caba, color="blue")+
+  geom_sf(data=centros_privados, color="red")
+```
+
+
+### d) Descargar un mapa base para darle contexto a los datos. Mostrar el mapa 
+```{r}
+bbox_caba <- getbb("Ciudad Autónoma de Buenos Aires, Argentina")
+```
+
+```{r}
+mapa_caba <- get_stadiamap(bbox=bbox_caba,
+                              maptype = "alidade_smooth",
+                              zoom = 14)
+```
+
+```{r}
+ggmap(mapa_caba)
+```
+
+### e) Spatial join
+
+
+
+```{r}
+centros_transformed <- st_transform(centros_privados, st_crs(barrios_caba))
+```
+
+```{r}
+centros_join <- st_join(centros_transformed, barrios_caba)
+```
+
+```{r}
+ggplot()+
+  geom_sf(data=barrios_caba)+
+  geom_sf(data=centros_join, aes(color=barrio), alpha=0.75, show.legend = FALSE)
+```
+
+
+
+
+```{r}
+centrosxbarrio <- centros_join %>%
+  group_by(barrio) %>%
+  summarise(cantidad=n())
+```
+
+```{r}
+head(centrosxbarrio)
+```
+
+```{r}
+centrosxbarrio <- centrosxbarrio %>%
+  st_drop_geometry()
+```
+
+```{r}
+barrios_caba <- left_join(barrios_caba, centrosxbarrio, by="barrio")
+```
+
+
+### e) Mapa coroplético
+
+```{r}
+ggplot()+
+  geom_sf(data=barrios_caba, aes(fill=cantidad), color=NA) +
+  geom_sf_label(data=barrios_caba, aes(label = barrio), size=1) +
+    labs(title = "Centros de salud privado por barrio",
+         subtitle = "CABA, 2012",
+        caption= "Fuente: Datos abiertos CABA") +
+  scale_fill_distiller(palette = "Spectral") +
+  theme_light()
+ 
+```
+
